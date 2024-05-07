@@ -141,7 +141,7 @@ export async function PunchmoleServer(
             break;
           case "websocket-connection-closed":
             if (openWebsocketConnections[message.id]) {
-              openWebsocketConnections[message.id].close();
+              openWebsocketConnections?.[message.id]?.close?.();
             }
             break;
           case "websocket-message":
