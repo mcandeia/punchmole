@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
 import express from "express";
+import crypto from "node:crypto";
 import http from "node:http";
-import {WebSocketServer} from "ws";
+import { WebSocketServer } from "ws";
 
 function generateRandomId() {
     return crypto.randomBytes(16).toString("hex")
@@ -24,7 +24,8 @@ export async function PunchmoleServer(port, apiKeys, endpointUrlPath = '/_punchm
 
     const domainsToConnections = {}
     let openRequests = []
-    let openWebsocketConnections = []
+    let openWebsocketConnections = {}
+    
     function getRequestObject(id) {
         return openRequests.find((v) => v.id === id)
     }
@@ -59,56 +60,13 @@ export async function PunchmoleServer(port, apiKeys, endpointUrlPath = '/_punchm
                             await socket.send(JSON.stringify({type: 'error', message: 'invalid api key'}))
                             socket.close()
                         }
-                        break
-                    case 'response-start':
-                        log.info(new Date(), 'response start, request id', message.id, message.headers)
-                        if (request) {
-                            request.responseObject.status(message.statusCode)
-                            request.responseObject.statusMessage = message.statusMessage
-                            request.responseObject.set(message.headers)
-                            request.responseObject.on('close', () => {
-                                log.info(new Date(), 'connection closed, stop sending data', message.id)
-                                openRequests = openRequests.filter((v) => v.id !== message.id)
-                                socket.send(JSON.stringify({type: 'request-end', id: message.id}))
-                            })
-                        } else {
-                            log.error(new Date(), 'didnt found response object, probably dead?')
-                        }
-                        break
-                    case 'data':
-                        if (request) {
-                            const data = Buffer.from(message.data, 'binary')
-                            // log.debug(new Date(), 'writing response data to request', message.id, data.length)
-                            request.responseObject.write(data)
-                        } else {
-                            log.error(new Date(), 'didnt found response object, unable to send data', message.id)
-                        }
-                        break
-                    case 'data-end':
-                        log.info(new Date(), 'finishing sending data for request', message.id)
-                        if (request) {
-                            request.responseObject.end()
-                        } else {
-                            log.error(new Date(), 'didnt found response object, unable to send data')
-                        }
-                        break
-                    case 'websocket-connection-closed':
-                        if(openWebsocketConnections[message.id]) {
-                            openWebsocketConnections[message.id].close()
-                        }
-                        break
-                    case 'websocket-message':
-                        const userSocket = openWebsocketConnections[message.id]
-                        if(userSocket) {
-                            log.debug(new Date(), 'sending websocket message received from proxied service to client', message.id)
-                            userSocket.socket.send(message.rawData)
-                        }
-                        break
+                        break;
+                    // Handle other message types here
                 }
 
             })
         } else {
-            // this part handles incoming websocket connections from user requests and forwards them to the tunneled service
+            // Handle WebSocket connections from users
             const requestedDomain = socket._socket.headers.host.match(/^(.*?)(:[0-9]{1,}|)$/)[1]
             const foreignHost = domainsToConnections[requestedDomain]
             if(!foreignHost) {
@@ -143,8 +101,10 @@ export async function PunchmoleServer(port, apiKeys, endpointUrlPath = '/_punchm
                         type: 'websocket-connection-closed',
                         id: socket.connectionId,
                     }))
-                    openWebsocketConnections[socket.connectionId].socket.close()
-                    delete openWebsocketConnections[socket.connectionId]
+                    if(openWebsocketConnections[socket.connectionId]) {
+                        openWebsocketConnections[socket.connectionId].socket.close()
+                        delete openWebsocketConnections[socket.connectionId]
+                    }
                 })
                 socket.on('message', (rawData) => {
                     log.info(new Date(), 'received data from client websocket connection, forwarding...', socket.connectionId)
@@ -199,10 +159,10 @@ export async function PunchmoleServer(port, apiKeys, endpointUrlPath = '/_punchm
             res.send("no registration for domain and/or remote service not available")
         }
     })
+
     app.get('/', (req, res) => {
         res.send('http server is running')
     })
-
 
     server.listen(port, () => {
         log.info(new Date(), `server is listening on port ${port}`)
@@ -214,3 +174,4 @@ export async function PunchmoleServer(port, apiKeys, endpointUrlPath = '/_punchm
         wss
     }
 }
+
