@@ -244,10 +244,6 @@ export async function PunchmoleServer(
       return response;
     }
 
-    if (url.pathname === "/") {
-      return new Response("http server is running", { status: 200 });
-    }
-
     const foreignHost = domainsToConnections[requestedDomain];
     log.debug(
       new Date(),
@@ -280,15 +276,17 @@ export async function PunchmoleServer(
         "-> forward to remote client",
         JSON.stringify(requestForward),
       );
-      foreignHost.socket.send(JSON.stringify(requestForward));
 
-      return new Promise<Response>((resolve) => {
+      const p = new Promise<Response>((resolve) => {
         openRequests[requestForward.id] = {
           resolve,
           headers: new Headers(),
           body: "",
         };
       });
+      foreignHost.socket.send(JSON.stringify(requestForward));
+
+      return p;
     } else {
       return new Response(
         "no registration for domain and/or remote service not available",
