@@ -211,12 +211,16 @@ export async function PunchmoleServer(
         });
         socket.on("close", () => {
           log.info(new Date(), "client websocket closed", socket.connectionId);
-          foreignHost.socket.send(JSON.stringify({
-            type: "websocket-connection-closed",
-            id: socket.connectionId,
-          }));
-          openWebsocketConnections[socket.connectionId].socket.close();
-          delete openWebsocketConnections[socket.connectionId];
+          try {
+            foreignHost.socket.send(JSON.stringify({
+              type: "websocket-connection-closed",
+              id: socket.connectionId,
+            }));
+            openWebsocketConnections[socket.connectionId].socket.close();
+            delete openWebsocketConnections[socket.connectionId];
+          } catch (err) {
+            console.error(err);
+          }
         });
         socket.on("message", (rawData) => {
           log.info(

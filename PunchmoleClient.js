@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
-import { WebSocket } from 'ws'
 import http from 'node:http'
+import { WebSocket } from 'ws'
 
 export function PunchmoleClient(apiKey, domain, targetUrl, endpointUrl, log = console) {
     const eventEmitter = new EventEmitter()
